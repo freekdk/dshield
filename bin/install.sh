@@ -1772,7 +1772,7 @@ EOF
   
 else # use_iptables = False -> use nftables
   dlog "using nftables, not iptables"
-  cat >"${TMPDIR}"/ruleset.nft <<EOF
+  cat > /etc/network/ruleset.nft <<EOF
 # NFT ruleset generated on $(date)
 add table ip filter
 add chain ip filter INPUT { type filter hook input priority 0; policy drop; }
@@ -1783,7 +1783,7 @@ add rule ip filter INPUT iifname "${interface}" ct state related,established  co
 EOF
 
   # allow pings from localnet
-  echo "# allow ping from local network" >>"${TMPDIR}"/ruleset.nft
+  echo "# allow ping from local network" >>/etc/network/ruleset.nft
   echo "add rule ip filter INPUT iifname \"$interface\" ip saddr ${localnet} icmp type echo-request counter accept" >>"${TMPDIR}"/ruleset.nft
 
   # insert IPs and ports for which honeypot has to be disabled
@@ -1922,40 +1922,24 @@ fi
 if [ "$INTERACTIVE" == 1 ]; then
   dlog "changing port for sshd"
 
-  if [ -f /etc/ssh/sshd_config ] ; then
-    run "sed \"s/^[#\s]*Port 22\s*$/Port ${SSHDPORT}/\" < /etc/ssh/sshd_config > ${TMPDIR}/sshd_config"
-    sudorun "mv ${TMPDIR}/sshd_config /etc/ssh/sshd_config"
-    dlog "checking if modification was successful"
-    if [ "$(grep -c "^Port ${SSHDPORT}$" /etc/ssh/sshd_config)" -ne 1 ]; then
-      dialog --title 'sshd port' --ok-label 'Understood.' --cr-wrap --msgbox "Congrats, you had already changed your sshd port to something other than 22.
+  run "sed \"s/^[#\s]*Port 22\s*$/Port ${SSHDPORT}/\" < /etc/ssh/sshd_config > ${TMPDIR}/sshd_config"
+  sudorun "mv ${TMPDIR}/sshd_config /etc/ssh/sshd_config"
+
+  dlog "checking if modification was successful"
+  if [ "$(grep -c "^Port ${SSHDPORT}$" /etc/ssh/sshd_config)" -ne 1 ]; then
+    dialog --title 'sshd port' --ok-label 'Understood.' --cr-wrap --msgbox "Congrats, you had already changed your sshd port to something other than 22.
+
 Please clean up and either
   - change the port manually to ${SSHDPORT}
      in  /etc/ssh/sshd_config    OR
   - clean up the firewall rules and
      other stuff reflecting YOUR PORT" 13 50
-      clear
+    clear
 
-      dlog "check unsuccessful, port ${SSHDPORT} not found in sshd_config"
-      drun 'cat /etc/ssh/sshd_config  | grep -v "^\$" | grep -v "^#"'
-    else
-      dlog "check successful, port change to ${SSHDPORT} in sshd_config"
-    fi
-  else # when /etc/ssh/sshd_config does not exist
-    if [ "$(grep -c "^Port ${SSHDPORT}$" /etc/ssh/sshd_config.d/*.conf)" -ne 0 ] ; then
-      dlog "check succesfull, port changed to ${SSHDPORT} in a file in /etc/ssh/sshd.config.d/"
-    else
-      if [ "$(grep -c "^Port " /etc/ssh/sshd_config.d/*.conf)" -ge 1 ] ; then
-        dialog --title 'sshd port' --ok-label 'Understood.' --cr-wrap --msgbox "Congrats, you had already changed your sshd port to something other than 22.
-Please clean up and either
-  - change the port manually to ${SSHDPORT}
-     in a file in /etc/ssh/sshd_config.d/*.conf    OR
-  - clean up the firewall rules and
-     other stuff reflecting YOUR PORT" 13 50
-        clear
-      else # a file Port.conf does not exist
-        sudorun "echo 'Port ${SSHDPORT}' > /etc/ssh/sshd_config.d/Port_${SSHDPORT}.conf"
-      fi
-    fi
+    dlog "check unsuccessful, port ${SSHDPORT} not found in sshd_config"
+    drun 'cat /etc/ssh/sshd_config  | grep -v "^\$" | grep -v "^#"'
+  else
+    dlog "check successful, port change to ${SSHDPORT} in sshd_config"
   fi
 fi # interactive
 ###########################################################
@@ -2552,7 +2536,7 @@ run 'mkdir -p /var/tmp/dshield'
 
 # rotate dshield firewall logs
 sudo_copy "$progdir"/../etc/logrotate.d/dshield /etc/logrotate.d 644
-[ "$ID" = "opensuse" ] && sudorun "sed -e 's/\/usr\/lib.*$/systemctl reload rsyslog/' -i /etc/logrotate.d/dshield"
+[ "$ID" = "opensuse" ] && sed -e 's/\/usr\/lib.*$/systemctl reload rsyslog/' -i /etc/logrotate.d/dshield
 if [ -f "/etc/cron.daily/logrotate" ]; then
   sudorun "mv /etc/cron.daily/logrotate /etc/cron.hourly"
 fi
